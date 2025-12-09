@@ -1,0 +1,162 @@
+.TH MDNSREFLECT 8 "December 2025" "1.0" "System Administration Utilities"
+.SH NAME
+mdnsreflect \- A unidirectional mDNS (Bonjour/Avahi) and Lutron discovery reflector.
+.SH SYNOPSIS
+.B mdnsreflect
+[\fB\-a\fR|\fB\-\-add\fR \fITYPE\fR]
+[\fB\-\-daemon\fR]
+[\fB\-e\fR|\fB\-\-exclude\fR \fITYPE\fR]
+[\fB\-\-ip\-mode\fR {\fBv4\fR,\fBv6\fR,\fBboth\fR}]
+[\fB\-\-json\fR]
+[\fB\-\-list\-services\fR [\fIFILTER\fR]]
+[\fB\-\-lutron\fR]
+[\fB\-\-no\-defaults\fR]
+[\fB\-\-resolve\-host\fR \fIHOSTNAME\fR]
+[\fB\-s\fR|\fB\-\-source\fR \fIIFACE\fR]
+[\fB\-\-socket\fR \fIPATH\fR]
+[\fB\-\-status\fR]
+[\fB\-t\fR|\fB\-\-target\fR \fIIFACE\fR]
+
+.SH DESCRIPTION
+.B mdnsreflect
+is a Python-based utility designed to bridge multicast discovery traffic between two distinct network interfaces (e.g., Ethernet and WiFi). Unlike full mDNS repeaters, it is designed to be lightweight, unidirectional, and highly configurable.
+
+It operates by listening for service advertisements on the
+.B Source
+interface and re-publishing them onto the
+.B Target
+interface using the python-zeroconf library.
+
+It also includes support for the proprietary Lutron integration protocol (UDP 2647).
+
+.SH MODES
+The program runs in two mutually exclusive modes:
+.TP
+.B Daemon Mode
+The default mode when interfaces are specified. It creates a reflector process that runs indefinitely. It binds a UNIX domain socket (default: \fI/run/mdnsreflect/mdnsreflect.sock\fR) to allow for status queries.
+.TP
+.B Client Mode
+Triggered by flags such as \fB\-\-status\fR or \fB\-\-list-services\fR. In this mode, the program connects to the running daemon's socket, retrieves information, prints it to stdout, and exits.
+
+.SH OPTIONS
+.SS Daemon Configuration
+.TP
+.BI \-s\  IFACE ", \-\-source " IFACE
+The network interface to listen on (e.g., \fIeth0\fR).
+.TP
+.BI \-t\  IFACE ", \-\-target " IFACE
+The network interface to publish to (e.g., \fIwlan0\fR).
+.TP
+.B \-\-daemon
+Explicitly triggers daemon mode. If no other arguments are provided, defaults to \fIeth0\fR and \fIwlan0\fR.
+.TP
+.BI \-\-ip-mode\  MODE
+Sets the IP protocol mode. \fIMODE\fR can be \fBv4\fR (default), \fBv6\fR, or \fBboth\fR.
+.TP
+.B \-\-lutron
+Enables reflection for the Lutron integration protocol (Multicast 224.0.37.42:2647). This runs in a separate blocking I/O loop alongside the mDNS threads. Note: Lutron reflection is currently IPv4 only.
+
+.SS Service Management
+.TP
+.BI \-a\  TYPE ", \-\-add " TYPE
+Add a specific service type to the reflection list (e.g., \fI_ssh._tcp.local.\fR). Can be used multiple times.
+.TP
+.BI \-e\  TYPE ", \-\-exclude " TYPE
+Exclude a specific service type from the default list.
+.TP
+.B \-\-no-defaults
+Start with an empty list of services. You must use \fB\-\-add\fR to define what to reflect.
+
+.SS Client & IPC Options
+.TP
+.B \-\-status
+Queries the running daemon for uptime, configuration, and service count.
+.TP
+.BI \-\-list-services " [FILTER]"
+Lists all currently reflected services. An optional text \fIFILTER\fR can be provided (case-insensitive).
+.TP
+.BI \-\-resolve-host " HOSTNAME"
+Queries the daemon's cache to resolve a \fI.local\fR hostname to an IP address.
+.TP
+.BI \-\-socket " PATH"
+Path to the UNIX domain socket. Default: \fI/run/mdnsreflect/mdnsreflect.sock\fR.
+.TP
+.B \-\-json
+Output client results in JSON format for scripting.
+
+.SH EDGE CASES AND BEHAVIOR
+.B mdnsreflect
+includes specific logic to handle the complexities of mDNS on Linux.
+
+.SS 1. Service Aliasing (The "Mangled Name")
+On Linux, multicast sockets often suffer from "Cross-Talk," where a socket bound to \fIwlan0\fR hears packets arriving on \fIeth0\fR. This causes the reflector to see the service it is trying to publish as a conflict.
+.PP
+To resolve this, if a name conflict is detected, the daemon automatically renames the service and hostname:
+.br
+Original: \fIMyPrinter._ipp._tcp.local.\fR
+.br
+Reflected: \fIMyPrinter (Reflect)._ipp._tcp.local.\fR
+.br
+Hostname: \fIprinter-reflector.local.\fR
+.PP
+This ensures the reflected service is unique and robust against network loops.
+
+.SS 2. Root Privileges (SO_BINDTODEVICE)
+To mitigate the cross-talk mentioned above, the daemon attempts to bind sockets strictly to the hardware device using the \fBSO_BINDTODEVICE\fR socket option.
+.PP
+This requires \fBroot\fR privileges or the \fBCAP_NET_RAW\fR capability. If run as a standard user without capabilities, the daemon will warn about "Leakage" and fall back to the Aliasing strategy described above.
+
+.SS 3. Zombie Records
+If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cache. The daemon detects this state. If a conflict is caused by a Zombie record, the daemon waits 2.5 seconds for the internal cache cleaner to run, then retries the registration automatically.
+
+.SH EXAMPLES
+.B Start the daemon (IPv4 only, standard services):
+.br
+.in +4
+$ sudo mdnsreflect --source eth0 --target wlan0
+.in
+
+.B Start with IPv6 and Lutron support:
+.br
+.in +4
+$ sudo mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
+.in
+
+.B Reflect ONLY printers (IPP):
+.br
+.in +4
+$ sudo mdnsreflect -s eth0 -t wlan0 --no-defaults --add _ipp._tcp.local.
+.in
+
+.B Check status (Client Mode):
+.br
+.in +4
+$ mdnsreflect --status
+.in
+
+.B List all Google Cast devices in JSON:
+.br
+.in +4
+$ mdnsreflect --list-services googlecast --json
+.in
+
+.SH FILES
+.TP
+.I /run/mdnsreflect/mdnsreflect.sock
+Recommended location for the IPC socket when running via systemd.
+.TP
+.I /etc/systemd/system/mdnsreflect.service
+Typical location for the systemd unit file.
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error (e.g., Missing arguments, permission denied, or daemon not running).
+
+.SH BUGS
+Lutron reflection currently does not support IPv6.
+.br
+If \fBzeroconf\fR receives a packet from the source network that has the same IP as the target interface (e.g., via a network bridge), it will be ignored to prevent loops.

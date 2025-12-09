@@ -1,0 +1,24 @@
+[Unit]
+Description=mDNS Reflector
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+ExecStart=/usr/local/lib/mdnsreflect/venv/bin/mdnsreflect /usr/local/lib/mdnsreflect/mdnsreflect.py --source guest --target eth0 --lutron --daemon
+Group=mdnsreflect
+NoNewPrivileges=true
+PrivateTmp=yes
+ProtectHome=true
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RuntimeDirectory=mdnsreflect
+Restart=always
+RestartSec=5
+Type=exec
+User=mdnsreflect
+WorkingDirectory=/run/mdnsreflect
+
+[Install]
+WantedBy=multi-user.target
