@@ -45,9 +45,9 @@ The program runs in two mutually exclusive modes:
 ### Daemon Configuration
 
 
-* **-s&nbsp;**_IFACE_**, --source **_IFACE_  
+* **-s&nbsp;**_IFACE_, **--source** _IFACE_  
   The network interface to listen on (e.g., _eth0_).
-* **-t&nbsp;**_IFACE_**, --target **_IFACE_  
+* **-t&nbsp;**_IFACE_, **--target** _IFACE_  
   The network interface to publish to (e.g., _wlan0_).
 * **--daemon**  
   Explicitly triggers daemon mode. If no other arguments are provided, defaults to _eth0_ and _wlan0_.
@@ -62,9 +62,9 @@ The program runs in two mutually exclusive modes:
 ### Service Management
 
 
-* **-a&nbsp;**_TYPE_**, --add **_TYPE_  
+* **-a&nbsp;**_TYPE_, **--add** _TYPE_  
   Add a specific service type to the reflection list (e.g., _\_ssh.\_tcp.local._). Can be used multiple times.
-* **-e&nbsp;**_TYPE_**, --exclude **_TYPE_  
+* **-e&nbsp;**_TYPE_, **--exclude** _TYPE_  
   Exclude a specific service type from the default list.
 * **--no-defaults**  
   Start with an empty list of services. You must use **--add** to define what to reflect.
@@ -77,11 +77,11 @@ The program runs in two mutually exclusive modes:
 
 * **--status**  
   Queries the running daemon for uptime, configuration, and service count.
-* **--list-services**_ [FILTER]_  
+* **--list-services** _[FILTER]_  
   Lists all currently reflected services. An optional text _FILTER_ can be provided (case-insensitive).
-* **--resolve-host**_ HOSTNAME_  
+* **--resolve-host** _HOSTNAME_  
   Queries the daemon's cache to resolve a _.local_ hostname to an IP address.
-* **--socket**_ PATH_  
+* **--socket** _PATH_  
   Path to the UNIX domain socket. Default: _/run/mdnsreflect/mdnsreflect.sock_.
 * **--json**  
   Output client results in JSON format for scripting.
@@ -130,29 +130,19 @@ If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cac
 # Examples
 
 **Start the daemon (IPv4 only, standard services):**  
-.in +4
-$ sudo mdnsreflect --source eth0 --target wlan0
-.in
+  $ sudo mdnsreflect --source eth0 --target wlan0
 
 **Start with IPv6 and Lutron support:**  
-.in +4
-$ sudo mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
-.in
+  $ sudo mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
 
 **Reflect ONLY printers (IPP):**  
-.in +4
-$ sudo mdnsreflect -s eth0 -t wlan0 --no-defaults --add _ipp._tcp.local.
-.in
+  $ sudo mdnsreflect -s eth0 -t wlan0 --no-defaults --add _ipp._tcp.local.
 
 **Check status (Client Mode):**  
-.in +4
-$ mdnsreflect --status
-.in
+  $ mdnsreflect --status
 
 **List all Google Cast devices in JSON:**  
-.in +4
-$ mdnsreflect --list-services googlecast --json
-.in
+  $ mdnsreflect --list-services googlecast --json
 
 
 <a name="files"></a>
