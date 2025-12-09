@@ -51,15 +51,15 @@ man mdnsreflect
 
 ## Quick Start
 
-###Start the daemon (IPv4 only, standard services):
+### Start the daemon (IPv4 only, standard services):
 ```bash
 mdnsreflect --source eth0 --target wlan0
 ```
-###Start with IPv6 and Lutron discovery enabled:
+### Start with IPv6 and Lutron discovery enabled:
 ```bash
 mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
 ```
-###Reflect ONLY printers (IPP):
+### Reflect ONLY printers (IPP):
 ```bash
 mdnsreflect --no-defaults --add _ipp._tcp.local.
 ```
@@ -68,11 +68,11 @@ mdnsreflect --no-defaults --add _ipp._tcp.local.
 
 You can query the running daemon using the client commands (no root required
 if the socket permissions allow):
-##Check Daemon Status:
+## Check Daemon Status:
 ```bash
 mdnsreflect --status
 ```
-##List Reflected Services:
+## List Reflected Services:
 ```bash
 mdnsreflect --list-services
 ```
