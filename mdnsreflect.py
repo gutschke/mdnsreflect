@@ -10,7 +10,7 @@ import time
 from contextlib import contextmanager
 from pyroute2 import IPRoute
 from zeroconf import NonUniqueNameException, ServiceBrowser, ServiceInfo, \
-                     ServiceListener, Zeroconf
+                     ServiceListener, ServiceNameAlreadyRegistered, Zeroconf
 
 # Logging setup
 # Logs go to stderr so they don't pollute JSON output on stdout
@@ -325,6 +325,8 @@ class ReflectorListener(ServiceListener):
             conflicts = self.dump_conflict_info(name, info.server)
             logger.warning(f'⚠️  Conflict for {ident}.')
             for c in conflicts: logger.warning(f'    CACHE: {c}')
+        except ServiceNameAlreadyRegistered:
+            logger.warning(f'⚠️  Service name already registered for {ident}.')
 
         # Alias / rename
         logger.info(f'    Action: Attempting to reflect with aliased name...')
