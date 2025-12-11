@@ -327,6 +327,7 @@ class ReflectorListener(ServiceListener):
             for c in conflicts: logger.warning(f'    CACHE: {c}')
         except ServiceNameAlreadyRegistered:
             logger.warning(f'⚠️  Service name already registered for {ident}.')
+            return
 
         # Alias / rename
         logger.info(f'    Action: Attempting to reflect with aliased name...')
