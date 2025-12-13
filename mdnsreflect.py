@@ -769,6 +769,7 @@ def main():
         for s in lutron_socks: s.close()
         ipc_thread.join()
         logger.info('👋 Reflector stopped.')
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
