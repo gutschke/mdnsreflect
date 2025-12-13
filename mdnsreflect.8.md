@@ -1,9 +1,15 @@
-# mdnsreflect(8) - A unidirectional mDNS (Bonjour/Avahi) and Lutron discovery reflector.
+# mdnsreflect(8) - A unidirectional mDNS (Bonjour/Avahi) and Lutron discovery
 
 1.0, December 2025
 
+reflector.
+
+<a name="synopsis"></a>
+
+# Synopsis
+
 ```
-mdnsreflect [-a|--add TYPE] [--daemon] [-e|--exclude TYPE] [--ip-mode {v4,v6,both}] [--json] [--list-services [FILTER]] [--lutron] [--no-defaults] [--resolve-host HOSTNAME] [-s|--source IFACE] [--socket PATH] [--status] [-t|--target IFACE]
+mdnsreflect [-a|--add TYPE] [--daemon] [-e|--exclude TYPE] [--ip-mode {v4,v6,both}] [--json] [--list-services [FILTER]] [--lutron] [--no-defaults] [--refresh-scanners MINUTES] [--resolve-host HOSTNAME] [-s|--source IFACE] [--socket PATH] [--status] [-t|--target IFACE]
 ```
 
 
@@ -12,7 +18,10 @@ mdnsreflect [-a|--add TYPE] [--daemon] [-e|--exclude TYPE] [--ip-mode {v4,v6,bot
 # Description
 
 **mdnsreflect**
-is a Python-based utility designed to bridge multicast discovery traffic between two distinct network interfaces (e.g., Ethernet and WiFi). Unlike full mDNS repeaters, it is designed to be lightweight, unidirectional, and highly configurable.
+is a Python-based utility designed to bridge multicast discovery traffic between
+two distinct network interfaces (e.g., Ethernet and WiFi). Unlike full mDNS
+repeaters, it is designed to be lightweight, unidirectional, and highly
+configurable.
 
 It operates by listening for service advertisements on the
 **Source**
@@ -20,7 +29,8 @@ interface and re-publishing them onto the
 **Target**
 interface using the python-zeroconf library.
 
-It also includes support for the proprietary Lutron integration protocol (UDP 2647).
+It also includes support for the proprietary Lutron integration protocol
+(UDP 2647).
 
 
 <a name="modes"></a>
@@ -29,10 +39,16 @@ It also includes support for the proprietary Lutron integration protocol (UDP 26
 
 The program runs in two mutually exclusive modes:
 
+
 * **Daemon Mode**  
-  The default mode when interfaces are specified. It creates a reflector process that runs indefinitely. It binds a UNIX domain socket (default: _/run/mdnsreflect/mdnsreflect.sock_) to allow for status queries.
+  The default mode when interfaces are specified. It creates a reflector process
+  that runs indefinitely. It binds a UNIX domain socket
+  (default: _/run/mdnsreflect/mdnsreflect.sock_) to allow for status queries.
+  
 * **Client Mode**  
-  Triggered by flags such as **--status** or **--list-services**. In this mode, the program connects to the running daemon's socket, retrieves information, prints it to stdout, and exits.
+  Triggered by flags such as **--status** or **--list-services**. In this
+  mode, the program connects to the running daemon's socket, retrieves
+  information, prints it to stdout, and exits.
   
 
 <a name="options"></a>
@@ -45,16 +61,25 @@ The program runs in two mutually exclusive modes:
 ### Daemon Configuration
 
 
-* **-s&nbsp;**_IFACE_, **--source** _IFACE_  
+
+* **-s** _IFACE\R, \B--source_ _IFACE_  
   The network interface to listen on (e.g., _eth0_).
-* **-t&nbsp;**_IFACE_, **--target** _IFACE_  
+  
+* **-t** _IFACE_, **--target** _IFACE_  
   The network interface to publish to (e.g., _wlan0_).
+  
 * **--daemon**  
-  Explicitly triggers daemon mode. If no other arguments are provided, defaults to _eth0_ and _wlan0_.
-* **--ip-mode&nbsp;**_MODE_  
-  Sets the IP protocol mode. _MODE_ can be **v4** (default), **v6**, or **both**.
+  Explicitly triggers daemon mode. If no other arguments are provided, defaults
+  to _eth0_ and _wlan0_.
+  
+* **--ip-mode** _MODE_  
+  Sets the IP protocol mode. _MODE_ can be **v4** (default), **v6**, or
+  **both**.
+  
 * **--lutron**  
-  Enables reflection for the Lutron integration protocol (Multicast 224.0.37.42:2647). This runs in a separate blocking I/O loop alongside the mDNS threads. Note: Lutron reflection is currently IPv4 only.
+  Enables reflection for the Lutron integration protocol
+  (Multicast 224.0.37.42:2647). This runs in a separate blocking I/O loop
+  alongside the mDNS threads. Note: Lutron reflection is currently IPv4 only.
   
 
 <a name="service-management"></a>
@@ -62,27 +87,45 @@ The program runs in two mutually exclusive modes:
 ### Service Management
 
 
-* **-a&nbsp;**_TYPE_, **--add** _TYPE_  
-  Add a specific service type to the reflection list (e.g., _\_ssh.\_tcp.local._). Can be used multiple times.
-* **-e&nbsp;**_TYPE_, **--exclude** _TYPE_  
-  Exclude a specific service type from the default list.
-* **--no-defaults**  
-  Start with an empty list of services. You must use **--add** to define what to reflect.
+
+* **-a** _TYPE_, **--add** _TYPE_  
+  Add a specific service type to the reflection list
+  (e.g., _\_ssh.\_tcp.local._). Can be used multiple times.
   
+* **-e** _TYPE_, **--exclude** _TYPE_  
+  Exclude a specific service type from the default list.
+  
+* **--no-defaults**  
+  Start with an empty list of services. You must use **--add** to define what
+  to reflect.
+  
+* **--refresh-scanners** _MINUTES_  
+  Sets an interval (in minutes) to forcefully re-announce scanner services (types
+  containing _\_uscan_).  
+  This is a workaround for clients (e.g., Chromebooks) that cache mDNS records
+  aggressively and lose track of scanners after they enter sleep mode.  
+  Default: 0 (Disabled).
 
 <a name="client-ipc-options"></a>
 
 ### Client & IPC Options
 
 
+
 * **--status**  
   Queries the running daemon for uptime, configuration, and service count.
+  
 * **--list-services** _[FILTER]_  
-  Lists all currently reflected services. An optional text _FILTER_ can be provided (case-insensitive).
-* **--resolve-host** _HOSTNAME_  
+  Lists all currently reflected services. An optional text _FILTER_ can be
+  provided (case-insensitive).
+  
+* \B--resolve-host _HOSTNAME_  
   Queries the daemon's cache to resolve a _.local_ hostname to an IP address.
+  
 * **--socket** _PATH_  
-  Path to the UNIX domain socket. Default: _/run/mdnsreflect/mdnsreflect.sock_.
+  Path to the UNIX domain socket.
+  Default: _/run/mdnsreflect/mdnsreflect.sock_.
+  
 * **--json**  
   Output client results in JSON format for scripting.
   
@@ -99,9 +142,12 @@ includes specific logic to handle the complexities of mDNS on Linux.
 
 ### 1. Service Aliasing (The "Mangled Name")
 
-On Linux, multicast sockets often suffer from "Cross-Talk," where a socket bound to _wlan0_ hears packets arriving on _eth0_. This causes the reflector to see the service it is trying to publish as a conflict.
+On Linux, multicast sockets often suffer from "Cross-Talk," where a socket bound
+to _wlan0_ hears packets arriving on _eth0_. This causes the reflector
+to see the service it is trying to publish as a conflict.
 
-To resolve this, if a name conflict is detected, the daemon automatically renames the service and hostname:  
+To resolve this, if a name conflict is detected, the daemon automatically
+renames the service and hostname:  
 Original: _MyPrinter.\_ipp.\_tcp.local._  
 Reflected: _MyPrinter (Reflect).\_ipp.\_tcp.local._  
 Hostname: _printer-reflector.local._
@@ -113,16 +159,22 @@ This ensures the reflected service is unique and robust against network loops.
 
 ### 2. Root Privileges (SO_BINDTODEVICE)
 
-To mitigate the cross-talk mentioned above, the daemon attempts to bind sockets strictly to the hardware device using the **SO\_BINDTODEVICE** socket option.
+To mitigate the cross-talk mentioned above, the daemon attempts to bind sockets
+strictly to the hardware device using the **SO\_BINDTODEVICE** socket option.
 
-This requires **root** privileges or the **CAP\_NET\_RAW** capability. If run as a standard user without capabilities, the daemon will warn about "Leakage" and fall back to the Aliasing strategy described above.
+This requires **root** privileges or the **CAP\_NET\_RAW** capability. If run
+as a standard user without capabilities, the daemon will warn about "leakage"
+and fall back to the aliasing strategy described above.
 
 
 <a name="3-zombie-records"></a>
 
 ### 3. Zombie Records
 
-If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cache. The daemon detects this state. If a conflict is caused by a Zombie record, the daemon waits 2.5 seconds for the internal cache cleaner to run, then retries the registration automatically.
+If a service disappears abruptly, "zombie" records (TTL=0) may linger in the
+cache. The daemon detects this state. If a conflict is caused by a zombie
+record, the daemon waits 2.5 seconds for the internal cache cleaner to run,
+then retries the registration automatically.
 
 
 <a name="examples"></a>
@@ -130,19 +182,24 @@ If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cac
 # Examples
 
 **Start the daemon (IPv4 only, standard services):**  
-  $ sudo mdnsreflect --source eth0 --target wlan0
+
+$ sudo mdnsreflect --source eth0 --target wlan0
 
 **Start with IPv6 and Lutron support:**  
-  $ sudo mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
+
+$ sudo mdnsreflect -s eth0 -t wlan0 --ip-mode both --lutron
 
 **Reflect ONLY printers (IPP):**  
-  $ sudo mdnsreflect -s eth0 -t wlan0 --no-defaults --add _ipp._tcp.local.
+
+$ sudo mdnsreflect -s eth0 -t wlan0 --no-defaults --add _ipp._tcp.local.
 
 **Check status (Client Mode):**  
-  $ mdnsreflect --status
+
+$ mdnsreflect --status
 
 **List all Google Cast devices in JSON:**  
-  $ mdnsreflect --list-services googlecast --json
+
+$ mdnsreflect --list-services googlecast --json
 
 
 <a name="files"></a>
@@ -150,8 +207,10 @@ If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cac
 # Files
 
 
+
 * _/run/mdnsreflect/mdnsreflect.sock_  
   Recommended location for the IPC socket when running via systemd.
+  
 * _/etc/systemd/system/mdnsreflect.service_  
   Typical location for the systemd unit file.
   
@@ -161,8 +220,10 @@ If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cac
 # Exit Status
 
 
+
 * **0**
   Success.
+  
 * **1**
   Error (e.g., Missing arguments, permission denied, or daemon not running).
   
@@ -172,4 +233,6 @@ If a service disappears abruptly, "Zombie" records (TTL=0) may linger in the cac
 # Bugs
 
 Lutron reflection currently does not support IPv6.  
-If **zeroconf** receives a packet from the source network that has the same IP as the target interface (e.g., via a network bridge), it will be ignored to prevent loops.
+If **zeroconf** receives a packet from the source network that has the same
+IP as the target interface (e.g., via a network bridge), it will be ignored to
+prevent loops.

@@ -261,7 +261,7 @@ class ReflectorListener(ServiceListener):
                     self.my_ips.add(socket.inet_pton(socket.AF_INET6, ip))
                 else:
                     self.my_ips.add(socket.inet_aton(ip))
-            except Exception:
+            except:
                 pass
 
     def format_identity(self, name, info=None):
@@ -369,10 +369,64 @@ class ReflectorListener(ServiceListener):
             logger.error(f'❌ Alias failed: {e}')
 
     def update_service(self, zc, type_, name):
-        # This method is required by the abstract base class.
-        # It handles TXT record updates (like a song change on Spotify).
-        # For a simple reflector, we can often ignore it, or log it.
-        pass
+        # Check if we are managing this service
+        if name not in self.reflected_services:
+            return
+
+        # Get fresh info from Source
+        try:
+            source_info = self.source_zc.get_service_info(type_, name)
+        except Exception: return
+        if not source_info: return
+
+        # Get the info we are currently broadcasting (which might be aliased!)
+        current_target_info = self.reflected_services[name]
+
+        # Detect change, but don't spam if nothing changed. We compare
+        # properties (TXT record) and port.
+        if (source_info.properties == current_target_info.properties and
+            source_info.port == current_target_info.port and
+            source_info.addresses == current_target_info.addresses):
+            return
+        logger.info(f'🔄 Updating: {current_target_info.name}')
+
+        # Construct updated info preserving the alias. We use the name and
+        # server from "current_target_info" (target side), and the data
+        # (port, txt, IPs) from "source_info" (source side).
+        new_target_info = ServiceInfo(
+            type_,
+            current_target_info.name, # Keep aliased name
+            addresses=source_info.addresses,
+            port=source_info.port,
+            weight=source_info.weight,
+            priority=source_info.priority,
+            properties=source_info.properties,
+            server=current_target_info.server # Keep aliased hostname
+        )
+
+        try:
+            self.target_zc.update_service(new_target_info)
+            self.reflected_services[name] = new_target_info
+        except Exception as e:
+            logger.error(f'❌ Update Failed: {e}')
+
+    def force_refresh_scanners(self):
+        '''Forces a Goodbye/Hello sequence for all scanner services, as those
+        seem to be particularly tricky, as implemented. The scanner discovery
+        in Chromebooks frequently loses the ability to detect HP scanners.'''
+        count = 0
+        for name, info in list(self.reflected_services.items()):
+            # Check for standard scanner service types
+            if '_uscan' in name or '_uscans' in name:
+                try:
+                    # Try to repair things by unregistering and reregister
+                    self.target_zc.unregister_service(info)
+                    self.target_zc.register_service(info)
+                    count += 1
+                except Exception as e:
+                    logger.error(f'❌ Refresh Error {name}: {e}')
+        if count > 0:
+            logger.info(f'♻️  Forced refresh of {count} scanner services')
 
     def remove_service(self, zc, type_, name):
         # We stored the REGISTERED info (either original or alias) in the dict
@@ -484,7 +538,9 @@ def main():
                    help='No built-in list of default services')
     p.add_argument('--lutron', action='store_true',
                    help='Reflect Lutron discovery (IPv4)')
-
+    p.add_argument('--refresh-scanners', type=int, default=0,
+                   help='Interval in minutes to force-refresh scanner '
+                   'advertisements. 0=Disabled.')
     args = p.parse_args()
 
     # Determine functionality mode
@@ -650,18 +706,37 @@ def main():
         else:
             logger.error('❌ Lutron requires IPv4 on both interfaces.')
 
+    # Main loop
+    stop_event = threading.Event()
+    refresh_interval_sec = args.refresh_scanners * 60
+    next_refresh = time.time() + refresh_interval_sec \
+        if refresh_interval_sec > 0 else None
+
     try:
+        logger.info(f'🟢 Reflector active (Lutron: {\
+                    "On" if args.lutron else "Off"})')
+        if args.refresh_scanners > 0:
+            logger.info(f'⏰ Scanner watchdog refreshing every '
+                        f'{args.refresh_scanners} minutes')
         while True:
+            timeout = None
+            if refresh_interval_sec > 0:
+                now = time.time()
+                if now >= next_refresh:
+                    listener.force_refresh_scanners()
+                    next_refresh = now + refresh_interval_sec
+                timeout = next_refresh - now
+
             # If Lutron is active, we use select. Otherwise we sleep.
             if lutron_socks:
-                readable, _, _ = select.select(lutron_socks, [], [])
+                readable, _, _ = select.select(lutron_socks, [], [], timeout)
 
                 for s in readable:
                     try:
                         data, addr = s.recvfrom(4096)
 
-                        # Filter: Ignore our own source/target IPs to prevent
-                        # loops. (Even with IP_MULTICAST_LOOP=0, cross-talk can
+                        # Ignore our own source/target IPs to prevent loops.
+                        # (even with IP_MULTICAST_LOOP=0, cross-talk can
                         # happen without BINDTODEVICE)
                         if addr[0] == s_ip4 or addr[0] == t_ip4:
                             continue
@@ -683,7 +758,7 @@ def main():
                         logger.error(f"❌ Lutron Error: {e}")
             else:
                 # Fallback for mDNS-only mode
-                stop_event.wait()
+                stop_event.wait(timeout=timeout)
 
     except KeyboardInterrupt:
         logger.info('🛑 Stopping reflector...')
