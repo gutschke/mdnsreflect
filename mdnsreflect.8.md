@@ -62,7 +62,7 @@ The program runs in two mutually exclusive modes:
 
 
 
-* **-s** _IFACE\R, \B--source_ _IFACE_  
+* **-s** _IFACE\R, **--source** IFACE_  
   The network interface to listen on (e.g., _eth0_).
   
 * **-t** _IFACE_, **--target** _IFACE_  
@@ -119,7 +119,7 @@ The program runs in two mutually exclusive modes:
   Lists all currently reflected services. An optional text _FILTER_ can be
   provided (case-insensitive).
   
-* \B--resolve-host _HOSTNAME_  
+* **--resolve-host** _HOSTNAME_  
   Queries the daemon's cache to resolve a _.local_ hostname to an IP address.
   
 * **--socket** _PATH_  
