@@ -117,7 +117,8 @@ interfaces.
 
 ## Usage
 
-For a comprehensive list of all available flags, refer to the manual page:
+For a comprehensive list of all available flags, refer to the
+[manual page](mdnsreflect.8.md):
 ```bash
 man mdnsreflect
 ```
