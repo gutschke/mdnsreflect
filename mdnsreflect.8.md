@@ -100,8 +100,9 @@ The program runs in two mutually exclusive modes:
   to reflect.
   
 * **--refresh-scanners** _MINUTES_  
-  Sets an interval (in minutes) to forcefully re-announce scanner services (types
-  containing _\_uscan_).  
+  Sets an interval (in minutes) to forcefully re-announce scanner (types
+  containing _\_uscan_ and _\_uscans_), and some printer services (_\_ipp_,
+  _\_ipps\_, and _\_pdl-datastream_).
   This is a workaround for clients (e.g., Chromebooks) that cache mDNS records
   aggressively and lose track of scanners after they enter sleep mode.  
   Default: 0 (Disabled).

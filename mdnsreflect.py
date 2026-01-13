@@ -410,14 +410,16 @@ class ReflectorListener(ServiceListener):
         except Exception as e:
             logger.error(f'❌ Update Failed: {e}')
 
-    def force_refresh_scanners(self):
-        '''Forces a Goodbye/Hello sequence for all scanner services, as those
-        seem to be particularly tricky, as implemented. The scanner discovery
-        in Chromebooks frequently loses the ability to detect HP scanners.'''
+    def force_refresh_scanners_and_printers(self):
+        '''Forces a Goodbye/Hello sequence for all scanner and printer
+        services, as those seem to be particularly tricky, as implemented.
+        The scanner discovery in Chromebooks frequently loses the ability
+        to detect HP scanners.'''
         count = 0
         for name, info in list(self.reflected_services.items()):
             # Check for standard scanner service types
-            if '_uscan' in name or '_uscans' in name:
+            if '_uscan' in name or '_uscans' in name or \
+               '_ipp' in name or '_ipps' in name or '_pdl-datastream' in name:
                 try:
                     # Try to repair things by unregistering and reregister
                     self.target_zc.unregister_service(info)
@@ -716,14 +718,14 @@ def main():
         logger.info(f'🟢 Reflector active (Lutron: {\
                     "On" if args.lutron else "Off"})')
         if args.refresh_scanners > 0:
-            logger.info(f'⏰ Scanner watchdog refreshing every '
+            logger.info(f'⏰ Scanne/printer watchdog refreshing every '
                         f'{args.refresh_scanners} minutes')
         while True:
             timeout = None
             if refresh_interval_sec > 0:
                 now = time.time()
                 if now >= next_refresh:
-                    listener.force_refresh_scanners()
+                    listener.force_refresh_scanners_and_printers()
                     next_refresh = now + refresh_interval_sec
                 timeout = next_refresh - now
 
@@ -769,7 +771,6 @@ def main():
         for s in lutron_socks: s.close()
         ipc_thread.join()
         logger.info('👋 Reflector stopped.')
-        sys.exit(1)
 
 if __name__ == '__main__':
     main()

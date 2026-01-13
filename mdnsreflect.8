@@ -95,8 +95,9 @@ to reflect.
 
 .TP
 \fB\-\-refresh-scanners\fR \fIMINUTES\fR
-Sets an interval (in minutes) to forcefully re-announce scanner services (types
-containing \fI_uscan\fR).
+Sets an interval (in minutes) to forcefully re-announce scanner (types containing
+\fI_uscan\fR, and \fI_uscans\fR), and some printer services (\fI_ipp\fR,
+\fI_ipps\fR, and \fI_pdl-datastream\fR).
 .br
 This is a workaround for clients (e.g., Chromebooks) that cache mDNS records
 aggressively and lose track of scanners after they enter sleep mode.
