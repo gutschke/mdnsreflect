@@ -117,6 +117,17 @@ The program runs in two mutually exclusive modes:
   absence — so a sleeping printer does not blink out downstream.  
   Default: 15. Set 0 to withdraw immediately (the legacy behavior).
 
+* **--reannounce** _MINUTES_  
+  Interval to cleanly re-announce *every* reflected service. python-zeroconf
+  announces a service once when it is registered and is silent thereafter (it
+  only answers queries), so a passive downstream consumer that caches
+  announcements — e.g. a unicast resolver — ages the record out, and after a
+  restart has nothing until a device happens to change. Re-announcing on a timer
+  keeps such consumers warm and lets them repopulate within one interval. Held
+  (asleep) services are included. Unlike --refresh-scanners this sends no
+  Goodbye, so it adds no name-conflict churn.  
+  Default: 2. Set 0 to disable.
+
 <a name="client-ipc-options"></a>
 
 ### Client & IPC Options

@@ -70,3 +70,18 @@ test_hold_reap_return_expire()
 test_hold_zero_is_legacy_immediate()
 test_add_service_clears_hold()
 print("ALL PASS")
+
+def test_heartbeat_reannounces_all():
+    tgt, src = MagicMock(), MagicMock()
+    L = mdnsreflect.ReflectorListener(tgt, src, "target", [], hold_secs=60)
+    for i in range(3):
+        n = f"S{i}._ipp._tcp.local."
+        L.reflected_services[n] = make_info(n)
+    # include a HELD (asleep) one — it must still be re-announced
+    L.remove_service(None, "_ipp._tcp.local.", "S0._ipp._tcp.local.")
+    L.heartbeat()
+    assert tgt.update_service.call_count == 3, f"want 3 re-announces, got {tgt.update_service.call_count}"
+    tgt.unregister_service.assert_not_called()   # heartbeat sends NO goodbye
+    print("PASS test_heartbeat_reannounces_all")
+
+test_heartbeat_reannounces_all()

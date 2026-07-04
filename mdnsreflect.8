@@ -13,6 +13,7 @@ reflector.
 [\fB\-\-lutron\fR]
 [\fB\-\-hold\-time\fR \fIMINUTES\fR]
 [\fB\-\-no\-defaults\fR]
+[\fB\-\-reannounce\fR \fIMINUTES\fR]
 [\fB\-\-refresh\-scanners\fR \fIMINUTES\fR]
 [\fB\-\-resolve\-host\fR \fIHOSTNAME\fR]
 [\fB\-s\fR|\fB\-\-source\fR \fIIFACE\fR]
@@ -114,6 +115,17 @@ and make it briefly unresolvable to trusted-side clients. Instead the reflector
 device), and only withdraws it after this many minutes of continuous absence.
 .br
 Default: 15. Set 0 to withdraw immediately (the legacy behavior).
+.TP
+\fB\-\-reannounce\fR \fIMINUTES\fR
+Interval to cleanly re-announce \fIevery\fR reflected service. python-zeroconf
+announces a service once when registered and is silent thereafter (it only answers
+queries), so a passive downstream consumer that caches announcements (e.g. a unicast
+resolver) ages the record out and, after a restart, has nothing until a device happens
+to change. Re-announcing on a timer keeps such consumers warm and repopulates them
+within one interval. Held (asleep) services are included, and unlike
+\fB\-\-refresh\-scanners\fR this sends no Goodbye, so it adds no name-conflict churn.
+.br
+Default: 2. Set 0 to disable.
 .SS Client & IPC Options
 
 .TP

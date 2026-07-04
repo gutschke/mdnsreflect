@@ -445,6 +445,26 @@ class ReflectorListener(ServiceListener):
         if count > 0:
             logger.info(f'♻️  Forced refresh of {count} scanner services')
 
+    def heartbeat(self):
+        '''Re-announce EVERY reflected service (a clean re-broadcast, no
+        Goodbye) on a timer. zeroconf announces a service once at register time
+        and is silent thereafter (it only answers queries), so a passive
+        downstream consumer — e.g. a unicast resolver that caches announcements
+        — ages the record out and, after a restart, has nothing until a device
+        happens to change. Periodically re-announcing keeps such consumers warm
+        and lets them repopulate within one interval. Held (asleep) services are
+        included, so they stay resolvable too. Unlike force_refresh this sends
+        no Goodbye, so it adds no name-conflict churn.'''
+        n = 0
+        for name, info in list(self.reflected_services.items()):
+            try:
+                self.target_zc.update_service(info)
+                n += 1
+            except Exception as e:
+                logger.error(f'❌ Heartbeat re-announce {name}: {e}')
+        if n:
+            logger.debug(f'💓 Re-announced {n} services')
+
     def remove_service(self, zc, type_, name):
         # We stored the REGISTERED info (either original or alias) in the dict
         # under the ORIGINAL name key.
@@ -603,6 +623,11 @@ def main():
                    'the source stops seeing it (rides through a sleeping '
                    'device instead of blinking it out downstream). '
                    '0=withdraw immediately (legacy behavior).')
+    p.add_argument('--reannounce', type=int, default=2,
+                   help='Minutes between clean re-announcements of ALL reflected '
+                   'services, so passive downstream consumers stay warm and '
+                   'repopulate quickly after a restart (zeroconf itself only '
+                   'announces once). 0=Disabled.')
     args = p.parse_args()
 
     # Determine functionality mode
@@ -776,6 +801,9 @@ def main():
         if refresh_interval_sec > 0 else None
     reap_interval_sec = 30  # cadence to re-resolve / expire HELD (lost) devices
     next_reap = time.time() + reap_interval_sec
+    heartbeat_interval_sec = args.reannounce * 60
+    next_heartbeat = time.time() + heartbeat_interval_sec \
+        if heartbeat_interval_sec > 0 else None
 
     try:
         logger.info(f'🟢 Reflector active (Lutron: {\
@@ -786,6 +814,9 @@ def main():
         if args.hold_time > 0:
             logger.info(f'🫂 Holding lost devices up to {args.hold_time} '
                         f'min before withdrawing')
+        if heartbeat_interval_sec > 0:
+            logger.info(f'💓 Re-announcing all services every '
+                        f'{args.reannounce} min')
         while True:
             now = time.time()
             timeout = reap_interval_sec
@@ -794,6 +825,11 @@ def main():
                     listener.force_refresh_scanners_and_printers()
                     next_refresh = now + refresh_interval_sec
                 timeout = min(timeout, next_refresh - now)
+            if heartbeat_interval_sec > 0:
+                if now >= next_heartbeat:
+                    listener.heartbeat()
+                    next_heartbeat = now + heartbeat_interval_sec
+                timeout = min(timeout, next_heartbeat - now)
             if now >= next_reap:
                 listener.reap_lost()
                 next_reap = now + reap_interval_sec
