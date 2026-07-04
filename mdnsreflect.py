@@ -247,11 +247,21 @@ class IPCServer:
 
 # Reflector listener
 class ReflectorListener(ServiceListener):
-    def __init__(self, target_zc, source_zc, target_iface_name, my_ips):
+    def __init__(self, target_zc, source_zc, target_iface_name, my_ips,
+                 hold_secs=900):
         self.target_zc = target_zc
         self.source_zc = source_zc
         self.target_iface_name = target_iface_name
         self.reflected_services = {}
+        # A source device that goes quiet is usually just ASLEEP (these are
+        # static-lease devices). Rather than withdrawing it the instant the
+        # source browser expires it — which makes it briefly unresolvable
+        # downstream — we HOLD it (keep announcing), record when the source
+        # lost it, re-resolve it periodically, and only withdraw after
+        # hold_secs of continuous absence. hold_secs <= 0 restores the old
+        # withdraw-immediately behavior.
+        self.hold_secs = hold_secs
+        self.lost_since = {}  # name -> monotonic-ish time the source lost it
 
         # Convert all our IPs (strings) to binary bytes for fast comparison
         self.my_ips = set()
@@ -315,6 +325,8 @@ class ReflectorListener(ServiceListener):
 
         logger.info(f'🔎 Found [{friendly}] on source: {ident}')
 
+        self.lost_since.pop(name, None)  # seen again => cancel any pending hold
+
         # Direct reflection
         try:
             self.target_zc.register_service(info)
@@ -326,7 +338,9 @@ class ReflectorListener(ServiceListener):
             logger.warning(f'⚠️  Conflict for {ident}.')
             for c in conflicts: logger.warning(f'    CACHE: {c}')
         except ServiceNameAlreadyRegistered:
-            logger.warning(f'⚠️  Service name already registered for {ident}.')
+            # Already published (e.g. a HELD device came back) — nothing to do,
+            # the hold was cleared above so it won't be reaped.
+            logger.info(f'↩️  {ident} already published (kept).')
             return
 
         # Alias / rename
@@ -407,6 +421,7 @@ class ReflectorListener(ServiceListener):
         try:
             self.target_zc.update_service(new_target_info)
             self.reflected_services[name] = new_target_info
+            self.lost_since.pop(name, None)  # updated => still present, cancel hold
         except Exception as e:
             logger.error(f'❌ Update Failed: {e}')
 
@@ -434,13 +449,53 @@ class ReflectorListener(ServiceListener):
         # We stored the REGISTERED info (either original or alias) in the dict
         # under the ORIGINAL name key.
         info = self.reflected_services.get(name)
-        if info:
+        if not info:
+            return
+        if self.hold_secs <= 0:
+            self._withdraw(name, info)  # opt-out: legacy immediate withdraw
+            return
+        # HOLD: the source browser expired it, but the device is probably just
+        # asleep. Keep announcing it; reap_lost() re-resolves and only withdraws
+        # after hold_secs of continuous absence.
+        if name not in self.lost_since:
+            self.lost_since[name] = time.time()
+            logger.info(f'💤 Source lost {info.name}; holding up to '
+                        f'{self.hold_secs}s')
+
+    def _withdraw(self, name, info):
+        try:
+            self.target_zc.unregister_service(info)
+            logger.info(f'🔇 Withdrew: {info.name}')
+        except Exception as e:
+            logger.error(f'❌ Withdraw error: {e}')
+        self.reflected_services.pop(name, None)
+        self.lost_since.pop(name, None)
+
+    def reap_lost(self):
+        '''For every HELD (briefly-lost) service: re-resolve it from the source
+        (a direct query often wakes/refreshes a sleeping device); if it answers,
+        keep it; if it's been absent longer than hold_secs, finally withdraw it.
+        Runs off the daemon's periodic tick.'''
+        if not self.lost_since:
+            return
+        now = time.time()
+        for name in list(self.lost_since.keys()):
+            info = self.reflected_services.get(name)
+            if not info:
+                self.lost_since.pop(name, None)
+                continue
             try:
-                self.target_zc.unregister_service(info)
-                logger.info(f'🔇 Withdrew: {info.name}')
-                del self.reflected_services[name]
-            except Exception as e:
-                logger.error(f'❌ Withdraw error: {e}')
+                fresh = self.source_zc.get_service_info(info.type, name,
+                                                        timeout=1200)
+            except Exception:
+                fresh = None
+            if fresh:
+                self.lost_since.pop(name, None)
+                logger.info(f'🔄 {info.name} answered again; keeping')
+            elif (now - self.lost_since[name]) > self.hold_secs:
+                logger.info(f'🔇 {info.name} absent > {self.hold_secs}s; '
+                            f'withdrawing')
+                self._withdraw(name, info)
 
 # Client (QUERY) functions
 def send_ipc_command(payload, socket_path, json_mode):
@@ -543,6 +598,11 @@ def main():
     p.add_argument('--refresh-scanners', type=int, default=0,
                    help='Interval in minutes to force-refresh scanner '
                    'advertisements. 0=Disabled.')
+    p.add_argument('--hold-time', type=int, default=15,
+                   help='Minutes to keep announcing a reflected device after '
+                   'the source stops seeing it (rides through a sleeping '
+                   'device instead of blinking it out downstream). '
+                   '0=withdraw immediately (legacy behavior).')
     args = p.parse_args()
 
     # Determine functionality mode
@@ -641,7 +701,8 @@ def main():
         logger.critical(f'❌ Failed to bind Zeroconf: {e}')
         return
 
-    listener = ReflectorListener(target_zc, source_zc, args.target, t_ips)
+    listener = ReflectorListener(target_zc, source_zc, args.target, t_ips,
+                                 hold_secs=args.hold_time * 60)
     browser = ServiceBrowser(source_zc, list(active), listener)
 
     ipc_server = IPCServer(listener, args.socket, time.time(), cfg_summary)
@@ -713,6 +774,8 @@ def main():
     refresh_interval_sec = args.refresh_scanners * 60
     next_refresh = time.time() + refresh_interval_sec \
         if refresh_interval_sec > 0 else None
+    reap_interval_sec = 30  # cadence to re-resolve / expire HELD (lost) devices
+    next_reap = time.time() + reap_interval_sec
 
     try:
         logger.info(f'🟢 Reflector active (Lutron: {\
@@ -720,14 +783,23 @@ def main():
         if args.refresh_scanners > 0:
             logger.info(f'⏰ Scanne/printer watchdog refreshing every '
                         f'{args.refresh_scanners} minutes')
+        if args.hold_time > 0:
+            logger.info(f'🫂 Holding lost devices up to {args.hold_time} '
+                        f'min before withdrawing')
         while True:
-            timeout = None
+            now = time.time()
+            timeout = reap_interval_sec
             if refresh_interval_sec > 0:
-                now = time.time()
                 if now >= next_refresh:
                     listener.force_refresh_scanners_and_printers()
                     next_refresh = now + refresh_interval_sec
-                timeout = next_refresh - now
+                timeout = min(timeout, next_refresh - now)
+            if now >= next_reap:
+                listener.reap_lost()
+                next_reap = now + reap_interval_sec
+            timeout = min(timeout, next_reap - now)
+            if timeout < 0:
+                timeout = 0
 
             # If Lutron is active, we use select. Otherwise we sleep.
             if lutron_socks:

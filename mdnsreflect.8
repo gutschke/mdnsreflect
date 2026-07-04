@@ -11,6 +11,7 @@ reflector.
 [\fB\-\-json\fR]
 [\fB\-\-list\-services\fR [\fIFILTER\fR]]
 [\fB\-\-lutron\fR]
+[\fB\-\-hold\-time\fR \fIMINUTES\fR]
 [\fB\-\-no\-defaults\fR]
 [\fB\-\-refresh\-scanners\fR \fIMINUTES\fR]
 [\fB\-\-resolve\-host\fR \fIHOSTNAME\fR]
@@ -103,6 +104,16 @@ This is a workaround for clients (e.g., Chromebooks) that cache mDNS records
 aggressively and lose track of scanners after they enter sleep mode.
 .br
 Default: 0 (Disabled).
+.TP
+\fB\-\-hold-time\fR \fIMINUTES\fR
+How long to keep announcing a reflected device on the target after the source
+stops seeing it. A device that goes quiet (most IoT devices sleep) is normally
+expired by the source browser, which would immediately withdraw it on the target
+and make it briefly unresolvable to trusted-side clients. Instead the reflector
+\fIholds\fR it, re-resolves it periodically (a direct query often wakes a sleeping
+device), and only withdraws it after this many minutes of continuous absence.
+.br
+Default: 15. Set 0 to withdraw immediately (the legacy behavior).
 .SS Client & IPC Options
 
 .TP

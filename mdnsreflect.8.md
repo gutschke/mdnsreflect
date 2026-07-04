@@ -9,7 +9,7 @@ reflector.
 # Synopsis
 
 ```
-mdnsreflect [-a|--add TYPE] [--daemon] [-e|--exclude TYPE] [--ip-mode {v4,v6,both}] [--json] [--list-services [FILTER]] [--lutron] [--no-defaults] [--refresh-scanners MINUTES] [--resolve-host HOSTNAME] [-s|--source IFACE] [--socket PATH] [--status] [-t|--target IFACE]
+mdnsreflect [-a|--add TYPE] [--daemon] [-e|--exclude TYPE] [--hold-time MINUTES] [--ip-mode {v4,v6,both}] [--json] [--list-services [FILTER]] [--lutron] [--no-defaults] [--refresh-scanners MINUTES] [--resolve-host HOSTNAME] [-s|--source IFACE] [--socket PATH] [--status] [-t|--target IFACE]
 ```
 
 
@@ -106,6 +106,16 @@ The program runs in two mutually exclusive modes:
   This is a workaround for clients (e.g., Chromebooks) that cache mDNS records
   aggressively and lose track of scanners after they enter sleep mode.  
   Default: 0 (Disabled).
+
+* **--hold-time** _MINUTES_  
+  How long to keep announcing a reflected device on the target after the source
+  stops seeing it. A device that goes quiet (most IoT devices sleep) is normally
+  expired by the source browser, which would immediately withdraw it on the
+  target and make it briefly unresolvable to trusted-side clients. Instead the
+  reflector *holds* it, re-resolves it periodically (a direct query often wakes a
+  sleeping device), and only withdraws it after this many minutes of continuous
+  absence — so a sleeping printer does not blink out downstream.  
+  Default: 15. Set 0 to withdraw immediately (the legacy behavior).
 
 <a name="client-ipc-options"></a>
 
