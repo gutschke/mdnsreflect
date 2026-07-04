@@ -21,10 +21,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Defaults
+# Defaults. Reflection is one-way source -> target, so --source is the UNTRUSTED / IoT
+# side we browse and --target is the TRUSTED side we re-publish onto. The example names
+# reflect that direction (IoT on Wi-Fi, trusted on wired); real deployments should always
+# pass their own interfaces explicitly.
 DEFAULT_SOCKET_NAME = '/run/mdnsreflect/mdnsreflect.sock'
-DEFAULT_SOURCE = 'eth0'
-DEFAULT_TARGET = 'wlan0'
+DEFAULT_SOURCE = 'wlan0'
+DEFAULT_TARGET = 'eth0'
 
 LUTRON_ADDR = '224.0.37.42'
 LUTRON_PORT = 2647
@@ -77,12 +80,20 @@ def patched_new_socket(*args, **kwargs):
                          target_iface.encode('utf-8'))
             logger.info(f'🔒 Secure Binding: Socket bound strictly to '
                         f'{target_iface}')
-        except PermissionError:
-            logger.warning(f'⚠️  ROOT REQUIRED: Cannot bind socket to '
-                           f'{target_iface}. Reflected services will be '
-                           f'renamed.')
         except Exception as e:
-            logger.error(f'❌ Socket Bind Error: {e}')
+            # FAIL CLOSED. A socket that must be pinned to one interface but could not be
+            # (SO_BINDTODEVICE needs CAP_NET_RAW/root) would send and receive on ALL
+            # interfaces, silently breaking the one-way source->target isolation this tool
+            # exists to enforce. Refuse to run rather than reflect across the boundary. The
+            # systemd unit runs as root, so this only trips on a genuine misconfiguration
+            # (no root, or a bad interface name), which the operator must fix.
+            try:
+                s.close()
+            except Exception:
+                pass
+            logger.critical(f'❌ FATAL: cannot bind a socket to "{target_iface}" ({e}). '
+                            f'Refusing to run without interface isolation (needs root).')
+            raise SystemExit(1)
     return s
 zeroconf._utils.net.new_socket = patched_new_socket
 

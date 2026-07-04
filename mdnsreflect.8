@@ -56,12 +56,15 @@ information, prints it to stdout, and exits.
 .SS Daemon Configuration
 
 .TP
-\fB\-s\fR \fIIFACE\R, \fB\-\-source\fR \fIIFACE\fR
-The network interface to listen on (e.g., \fIeth0\fR).
+\fB\-s\fR \fIIFACE\fR, \fB\-\-source\fR \fIIFACE\fR
+The interface to \fBbrowse\fR for services on \(em your untrusted / IoT / guest side
+(e.g., \fIwlan0\fR). Services discovered here are re-published onto the target.
 
 .TP
 \fB\-t\fR \fIIFACE\fR, \fB\-\-target\fR \fIIFACE\fR
-The network interface to publish to (e.g., \fIwlan0\fR).
+The interface to \fBpublish\fR the reflected services on \(em your trusted / wired side
+(e.g., \fIeth0\fR). Reflection is one-way, source (IoT) \(-> target (trusted), never the
+reverse, so trusted services are never leaked onto the untrusted segment.
 
 .TP
 .B \-\-daemon
@@ -188,7 +191,7 @@ then retries the registration automatically.
 .B Start the daemon (IPv4 only, standard services):
 .br
 
-$ sudo mdnsreflect --source eth0 --target wlan0
+$ sudo mdnsreflect --source wlan0 --target eth0
 
 .B Start with IPv6 and Lutron support:
 .br

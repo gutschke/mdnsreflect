@@ -62,11 +62,14 @@ The program runs in two mutually exclusive modes:
 
 
 
-* **-s** _IFACE\R, **--source** IFACE_  
-  The network interface to listen on (e.g., _eth0_).
+* **-s** _IFACE_, **--source** _IFACE_  
+  The interface to **browse** for services on — your untrusted / IoT / guest side
+  (e.g., _wlan0_). Services discovered here are re-published onto the target.
   
 * **-t** _IFACE_, **--target** _IFACE_  
-  The network interface to publish to (e.g., _wlan0_).
+  The interface to **publish** the reflected services on — your trusted / wired side
+  (e.g., _eth0_). Reflection is one-way, source (IoT) -> target (trusted), never the
+  reverse, so trusted services are never leaked onto the untrusted segment.
   
 * **--daemon**  
   Explicitly triggers daemon mode. If no other arguments are provided, defaults
@@ -205,7 +208,7 @@ then retries the registration automatically.
 
 **Start the daemon (IPv4 only, standard services):**  
 
-$ sudo mdnsreflect --source eth0 --target wlan0
+$ sudo mdnsreflect --source wlan0 --target eth0
 
 **Start with IPv6 and Lutron support:**  
 
